@@ -40,6 +40,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _bootstrapStatus = MutableLiveData<String>("")
     val bootstrapStatus: LiveData<String> = _bootstrapStatus
 
+    private val _bootstrapErrorDetail = MutableLiveData<String?>(null)
+    val bootstrapErrorDetail: LiveData<String?> = _bootstrapErrorDetail
+
+    private val _bootstrapInstalling = MutableLiveData(false)
+    val bootstrapInstalling: LiveData<Boolean> = _bootstrapInstalling
+
     private val _toastMessage = MutableLiveData<String?>(null)
     val toastMessage: LiveData<String?> = _toastMessage
 
@@ -68,29 +74,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeBootstrap() {
         viewModelScope.launch {
             app.bootstrapState.collect { state ->
-                val msg = when (state) {
-                    is TermuxBootstrapManager.BootstrapState.NotStarted -> ""
-                    is TermuxBootstrapManager.BootstrapState.Downloading ->
-                        "正在下载 Termux 环境 (${state.progress}%)..."
-                    is TermuxBootstrapManager.BootstrapState.Extracting ->
-                        state.message
+                when (state) {
+                    is TermuxBootstrapManager.BootstrapState.NotStarted -> {
+                        _bootstrapStatus.postValue("")
+                        _bootstrapInstalling.postValue(false)
+                        _bootstrapErrorDetail.postValue(null)
+                    }
+                    is TermuxBootstrapManager.BootstrapState.Downloading -> {
+                        _bootstrapStatus.postValue("正在下载 Termux 环境 (${state.progress}%)...")
+                        _bootstrapInstalling.postValue(true)
+                    }
+                    is TermuxBootstrapManager.BootstrapState.Extracting -> {
+                        _bootstrapStatus.postValue(state.message)
+                        _bootstrapInstalling.postValue(true)
+                    }
                     is TermuxBootstrapManager.BootstrapState.Complete -> {
+                        _bootstrapStatus.postValue("")
+                        _bootstrapInstalling.postValue(false)
                         _messages.value = (_messages.value ?: emptyList()) + ChatMessage(
                             role = MessageRole.SYSTEM,
                             content = "Termux 环境已就绪"
                         )
-                        ""
+                        updateLlmStatus()
                     }
-                    is TermuxBootstrapManager.BootstrapState.Failed ->
-                        "安装失败: ${state.error}"
+                    is TermuxBootstrapManager.BootstrapState.Failed -> {
+                        _bootstrapStatus.postValue("安装失败: ${state.error}")
+                        _bootstrapInstalling.postValue(false)
+                        _bootstrapErrorDetail.postValue(state.detailLog.ifEmpty { state.error })
+                        updateLlmStatus()
+                    }
                 }
-                _bootstrapStatus.postValue(msg)
             }
         }
     }
 
+    fun retryBootstrap() {
+        viewModelScope.launch {
+            _bootstrapErrorDetail.postValue(null)
+            _bootstrapStatus.postValue("正在重试...")
+            val result = bootstrapManager.install()
+            // state flow will pick it up
+        }
+    }
+
+    fun clearError() {
+        _bootstrapErrorDetail.postValue(null)
+        _bootstrapStatus.postValue("可以在设置中修改镜像地址后重试")
+    }
+
     private fun updateLlmStatus() {
-        val bootstrapReady = if (bootstrapManager.isInstalled) "✓ Termux" else "⏳ 初始化中"
+        val bootstrapReady = when {
+            bootstrapManager.isInstalled -> "✓ Termux"
+            app.bootstrapState.value is TermuxBootstrapManager.BootstrapState.Failed -> "✗ Termux 安装失败"
+            else -> "⏳ 初始化中"
+        }
         _llmStatus.value = if (llmConfig.apiKey.isNotBlank()) {
             "$bootstrapReady | ${llmConfig.providerType.displayName}"
         } else {
