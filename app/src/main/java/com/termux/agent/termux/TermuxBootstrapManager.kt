@@ -178,19 +178,55 @@ class TermuxBootstrapManager(
         val entries = zip.entries().asSequence().toList()
         errorLog.appendLine("ZIP 条目: ${entries.map { it.name }}")
 
-        val entry = entries.firstOrNull { it.name.endsWith(".tar.xz") }
-            ?: throw RuntimeException("ZIP 中没有 .tar.xz: ${entries.map { it.name }}")
-
-        val tarXzFile = File(context.cacheDir, "bootstrap.tar.xz")
-        zip.getInputStream(entry).use { input ->
-            FileOutputStream(tarXzFile).use { output -> input.copyTo(output) }
+        val tarXzEntry = entries.firstOrNull { it.name.endsWith(".tar.xz") }
+        if (tarXzEntry != null) {
+            // 旧格式: zip 内嵌 tar.xz
+            val tarXzFile = File(context.cacheDir, "bootstrap.tar.xz")
+            zip.getInputStream(tarXzEntry).use { input ->
+                FileOutputStream(tarXzFile).use { output -> input.copyTo(output) }
+            }
+            zip.close()
+            errorLog.appendLine("  -> tar.xz 提取完成 (${tarXzFile.length()} bytes)")
+            _state = BootstrapState.Extracting("解压文件系统...")
+            extractTarXz(tarXzFile, context.filesDir)
+            tarXzFile.delete()
+        } else {
+            // 新格式: zip 直接包含文件系统
+            errorLog.appendLine("  -> 检测到新格式，直接从 ZIP 解压文件系统...")
+            extractZipDirect(zip, context.filesDir)
+            zip.close()
         }
-        zip.close()
-        errorLog.appendLine("  -> tar.xz 提取完成 (${tarXzFile.length()} bytes)")
+    }
 
-        _state = BootstrapState.Extracting("解压文件系统...")
-        extractTarXz(tarXzFile, context.filesDir)
-        tarXzFile.delete()
+    private fun extractZipDirect(zip: ZipFile, destDir: File) {
+        var fileCount = 0; var dirCount = 0; var failCount = 0
+        val entries = zip.entries()
+        while (entries.hasMoreElements()) {
+            val entry = entries.nextElement()
+            val outputFile = File(destDir, entry.name)
+            try {
+                if (entry.isDirectory) {
+                    outputFile.mkdirs()
+                    dirCount++
+                } else {
+                    outputFile.parentFile?.mkdirs()
+                    zip.getInputStream(entry).use { input ->
+                        FileOutputStream(outputFile).use { output -> input.transferTo(output) }
+                    }
+                    val name = entry.name
+                    if (name.startsWith("usr/bin/") || name.startsWith("bin/") ||
+                        name.startsWith("usr/libexec/") || name.startsWith("libexec/")
+                    ) {
+                        outputFile.setExecutable(true, false)
+                    }
+                    fileCount++
+                }
+            } catch (e: Exception) {
+                failCount++
+                if (failCount <= 5) errorLog.appendLine("  -> 解压失败: ${entry.name}: ${e.message}")
+            }
+        }
+        errorLog.appendLine("  -> $fileCount 文件, $dirCount 目录, $failCount 失败")
     }
 
     private fun extractTarXz(tarXzFile: File, destDir: File) {
