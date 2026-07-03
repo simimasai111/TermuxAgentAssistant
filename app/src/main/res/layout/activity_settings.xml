@@ -121,11 +121,45 @@
             android:layout_marginBottom="24dp"
             android:inputType="numberDecimal" />
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginVertical="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Termux 环境"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#1B5E20"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bootstrap 下载镜像（\$arch 自动替换为 arm 架构）"
+            android:textSize="12sp"
+            android:textColor="#999999"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/edit_bootstrap_mirror"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="https://github.com/termux/termux-packages/releases/download/bootstrap-archives/bootstrap-\$arch.zip"
+            android:background="@drawable/bg_input"
+            android:paddingHorizontal="12dp"
+            android:layout_marginBottom="24dp"
+            android:inputType="textUri"
+            android:textSize="11sp" />
+
         <Button
             android:id="@+id/btn_test"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:text="测试连接"
+            android:text="测试 LLM 连接"
             android:backgroundTint="#FF9800"
             android:layout_marginBottom="8dp" />
 

@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.termux.agent.R
 import com.termux.agent.llm.LLMConfig
 import com.termux.agent.llm.ProviderType
+import com.termux.agent.termux.TermuxConfig
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -20,6 +21,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var modelIdEdit: EditText
     private lateinit var maxTokensEdit: EditText
     private lateinit var temperatureEdit: EditText
+    private lateinit var bootstrapMirrorEdit: EditText
     private lateinit var saveButton: Button
     private lateinit var testButton: Button
 
@@ -33,6 +35,7 @@ class SettingsActivity : AppCompatActivity() {
         modelIdEdit = findViewById(R.id.edit_model_id)
         maxTokensEdit = findViewById(R.id.edit_max_tokens)
         temperatureEdit = findViewById(R.id.edit_temperature)
+        bootstrapMirrorEdit = findViewById(R.id.edit_bootstrap_mirror)
         saveButton = findViewById(R.id.btn_save)
         testButton = findViewById(R.id.btn_test)
 
@@ -62,14 +65,17 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun loadConfig() {
-        val config = LLMConfig.load(this)
-        val providerIdx = ProviderType.entries.indexOf(config.providerType).coerceAtLeast(0)
+        val llmConfig = LLMConfig.load(this)
+        val termuxConfig = TermuxConfig.load(this)
+
+        val providerIdx = ProviderType.entries.indexOf(llmConfig.providerType).coerceAtLeast(0)
         providerSpinner.setSelection(providerIdx)
-        baseUrlEdit.setText(config.baseUrl)
-        apiKeyEdit.setText(config.apiKey)
-        modelIdEdit.setText(config.modelId)
-        maxTokensEdit.setText(config.maxTokens.toString())
-        temperatureEdit.setText(config.temperature.toString())
+        baseUrlEdit.setText(llmConfig.baseUrl)
+        apiKeyEdit.setText(llmConfig.apiKey)
+        modelIdEdit.setText(llmConfig.modelId)
+        maxTokensEdit.setText(llmConfig.maxTokens.toString())
+        temperatureEdit.setText(llmConfig.temperature.toString())
+        bootstrapMirrorEdit.setText(termuxConfig.bootstrapMirrorUrl)
     }
 
     private fun saveConfig() {
@@ -79,14 +85,21 @@ class SettingsActivity : AppCompatActivity() {
         val modelId = modelIdEdit.text.toString().trim()
         val maxTokens = maxTokensEdit.text.toString().toIntOrNull() ?: 2048
         val temperature = temperatureEdit.text.toString().toDoubleOrNull() ?: 0.1
+        val bootstrapMirror = bootstrapMirrorEdit.text.toString().trim()
 
         if (apiKey.isBlank()) {
             Toast.makeText(this, "请输入 API Key", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val config = LLMConfig(provider, baseUrl, apiKey, modelId, maxTokens, temperature)
-        LLMConfig.save(this, config)
+        val llmConfig = LLMConfig(provider, baseUrl, apiKey, modelId, maxTokens, temperature)
+        LLMConfig.save(this, llmConfig)
+
+        val termuxConfig = TermuxConfig(
+            bootstrapMirrorUrl = bootstrapMirror.ifEmpty { TermuxConfig.defaultMirrorUrl }
+        )
+        TermuxConfig.save(this, termuxConfig)
+
         Toast.makeText(this, "配置已保存 (${provider.displayName})", Toast.LENGTH_SHORT).show()
         finish()
     }

@@ -13,7 +13,10 @@ import java.io.FileOutputStream
 import java.net.URL
 import java.util.zip.ZipFile
 
-class TermuxBootstrapManager(private val context: Context) {
+class TermuxBootstrapManager(
+    private val context: Context,
+    private val termuxConfig: TermuxConfig = TermuxConfig.load(context)
+) {
 
     val prefix: File get() = File(context.filesDir, "usr")
     val home: File get() = File(context.filesDir, "home")
@@ -45,7 +48,7 @@ class TermuxBootstrapManager(private val context: Context) {
         }
 
     private val bootstrapUrl: String
-        get() = "https://github.com/termux/termux-packages/releases/download/bootstrap-archives/bootstrap-$arch.zip"
+        get() = termuxConfig.bootstrapMirrorUrl.replace("\$arch", arch)
 
     suspend fun install(): BootstrapState = withContext(Dispatchers.IO) {
         if (isInstalled) {
@@ -85,29 +88,49 @@ class TermuxBootstrapManager(private val context: Context) {
             return@withContext zipFile
         }
 
-        val url = URL(bootstrapUrl)
-        val conn = url.openConnection()
-        conn.connectTimeout = 30000
-        val totalSize = conn.contentLengthLong
+        val urlsToTry = listOfNotNull(
+            bootstrapUrl,
+            TermuxConfig.DEFAULT_GITHUB_URL.replace("\$arch", arch).takeIf {
+                it != bootstrapUrl
+            }
+        )
 
-        conn.getInputStream().use { input ->
-            FileOutputStream(zipFile).use { output ->
-                val buffer = ByteArray(8192)
-                var downloaded = 0L
-                var bytesRead: Int
+        var lastError: Exception? = null
 
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloaded += bytesRead
-                    if (totalSize > 0) {
-                        val progress = ((downloaded * 100) / totalSize).toInt()
-                        _state = BootstrapState.Downloading(progress)
+        for (urlStr in urlsToTry) {
+            try {
+                _state = BootstrapState.Downloading(0)
+                val url = URL(urlStr)
+                val conn = url.openConnection()
+                conn.connectTimeout = 15000
+                conn.readTimeout = 60000
+                val totalSize = conn.contentLengthLong
+
+                conn.getInputStream().use { input ->
+                    FileOutputStream(zipFile).use { output ->
+                        val buffer = ByteArray(8192)
+                        var downloaded = 0L
+                        var bytesRead: Int
+
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            downloaded += bytesRead
+                            if (totalSize > 0) {
+                                val progress = ((downloaded * 100) / totalSize).toInt()
+                                _state = BootstrapState.Downloading(progress)
+                            }
+                        }
                     }
                 }
+
+                if (zipFile.length() > 1_000_000) return@withContext zipFile
+            } catch (e: Exception) {
+                lastError = e
+                zipFile.delete()
             }
         }
 
-        zipFile
+        throw lastError ?: RuntimeException("Failed to download bootstrap from all mirrors")
     }
 
     private fun extractZipToTarXz(zipFile: File): File {
