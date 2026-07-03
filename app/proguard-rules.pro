@@ -1,0 +1,4 @@
+-keep class com.termux.agent.model.** { *; }
+-keep class com.termux.agent.security.** { *; }
+-keep class com.termux.agent.orchestrator.** { *; }
+-keepattributes *Annotation*
