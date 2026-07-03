@@ -24,7 +24,22 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.2
-          cache-disabled: false
+
+      - name: Download Termux bootstrap zips
+        run: |
+          echo "Fetching latest bootstrap tag..."
+          LATEST=$(curl -s "https://api.github.com/repos/termux/termux-packages/releases?per_page=5" \
+            | python3 -c "import sys,json;rels=json.load(sys.stdin);print([r['tag_name'] for r in rels if r['tag_name'].startswith('bootstrap-')][0])")
+          echo "Latest tag: $LATEST"
+          mkdir -p app/src/main/assets/bootstrap
+          for ARCH in aarch64 arm x86_64 i686; do
+            URL="https://github.com/termux/termux-packages/releases/download/$LATEST/bootstrap-$ARCH.zip"
+            echo "Downloading $ARCH from $URL"
+            curl -L -o "app/src/main/assets/bootstrap/bootstrap-$ARCH.zip" "$URL" --connect-timeout 30 --max-time 300
+            ls -lh "app/src/main/assets/bootstrap/bootstrap-$ARCH.zip"
+          done
+          echo "Bootstrap zips downloaded:"
+          ls -lh app/src/main/assets/bootstrap/
 
       - name: Grant execute permission
         run: chmod +x gradlew
