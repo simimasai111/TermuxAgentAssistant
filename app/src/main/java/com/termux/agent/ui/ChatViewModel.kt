@@ -75,7 +75,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     is TermuxBootstrapManager.BootstrapState.Extracting ->
                         state.message
                     is TermuxBootstrapManager.BootstrapState.Complete -> {
-                        _messages.value = _messages.value + ChatMessage(
+                        _messages.value = (_messages.value ?: emptyList()) + ChatMessage(
                             role = MessageRole.SYSTEM,
                             content = "Termux 环境已就绪"
                         )
