@@ -2,6 +2,7 @@ package com.termux.agent.transport
 
 import com.termux.agent.model.OutputLimits
 import com.termux.agent.model.ToolResult
+import com.termux.agent.termux.TermuxBootstrapManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -9,10 +10,9 @@ import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 class TermuxBridgeClient(
-    private val executorScriptPath: String = DEFAULT_EXECUTOR_PATH
+    private val bootstrapManager: TermuxBootstrapManager? = null
 ) {
     companion object {
-        const val DEFAULT_EXECUTOR_PATH = "/data/data/com.termux/files/home/agent-exec/exec.sh"
         const val DEFAULT_TIMEOUT_MS = 120_000L
     }
 
@@ -30,13 +30,24 @@ class TermuxBridgeClient(
         val startTime = System.currentTimeMillis()
 
         return@withContext try {
+            val bashPath = bootstrapManager?.bashPath ?: "bash"
+            val termuxEnv = bootstrapManager?.environmentVars() ?: emptyMap()
+
             val processBuilder = ProcessBuilder(
-                "bash", executorScriptPath,
-                request.command,
-                *request.args.toTypedArray()
+                bashPath, "-c",
+                buildCommandString(request.command, request.args)
             )
-            processBuilder.directory(File(request.workDir))
-            processBuilder.environment().putAll(request.env)
+
+            val workDirFile = if (request.workDir.startsWith("/")) {
+                File(request.workDir)
+            } else {
+                bootstrapManager?.let { File(it.home, request.workDir) } ?: File(request.workDir)
+            }
+            processBuilder.directory(workDirFile)
+
+            val env = processBuilder.environment()
+            env.putAll(termuxEnv)
+            env.putAll(request.env)
 
             val process = processBuilder.start()
 
@@ -69,7 +80,7 @@ class TermuxBridgeClient(
                 durationMs = duration,
                 metadata = mapOf(
                     "command" to request.command,
-                    "args" to request.args,
+                    "embedded_termux" to (bootstrapManager?.isInstalled == true),
                     "truncated" to truncated
                 ),
                 truncated = truncated
@@ -77,6 +88,21 @@ class TermuxBridgeClient(
         } catch (e: Exception) {
             val duration = System.currentTimeMillis() - startTime
             ToolResult.error("Execution failed: ${e.message}", durationMs = duration)
+        }
+    }
+
+    private fun buildCommandString(command: String, args: List<String>): String {
+        return if (args.isEmpty()) {
+            command
+        } else {
+            val escapedArgs = args.joinToString(" ") { arg ->
+                if (arg.contains(" ") || arg.contains("\"") || arg.contains("'")) {
+                    "'${arg.replace("'", "'\\''")}'"
+                } else {
+                    arg
+                }
+            }
+            "$command $escapedArgs"
         }
     }
 

@@ -7,7 +7,6 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -25,6 +24,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var rejectButton: Button
     private lateinit var settingsButton: Button
     private lateinit var llmStatusText: TextView
+    private lateinit var bootstrapStatusText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +37,7 @@ class ChatActivity : AppCompatActivity() {
         rejectButton = findViewById(R.id.btn_reject)
         settingsButton = findViewById(R.id.btn_settings)
         llmStatusText = findViewById(R.id.text_llm_status)
+        bootstrapStatusText = findViewById(R.id.text_bootstrap_status)
 
         adapter = ChatAdapter()
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -56,6 +57,11 @@ class ChatActivity : AppCompatActivity() {
 
         viewModel.llmStatus.observe(this) { status ->
             llmStatusText.text = status
+        }
+
+        viewModel.bootstrapStatus.observe(this) { status ->
+            bootstrapStatusText.text = status
+            bootstrapStatusText.visibility = if (status.isNotEmpty()) android.view.View.VISIBLE else android.view.View.GONE
         }
 
         viewModel.toastMessage.observe(this) { msg ->
