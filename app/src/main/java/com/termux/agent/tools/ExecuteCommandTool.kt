@@ -4,6 +4,7 @@ import com.termux.agent.model.ToolCall
 import com.termux.agent.model.ToolResult
 import com.termux.agent.security.CommandParser
 import com.termux.agent.security.CommandPolicy
+import com.termux.agent.security.PolicyResult
 import com.termux.agent.security.RiskClassifier
 import com.termux.agent.transport.TermuxBridgeClient
 
@@ -34,7 +35,7 @@ class ExecuteCommandTool(
         val stdin = call.args["stdin"] as? String ?: ""
 
         val policyResult = policy.check(program, cmdArgs)
-        if (policyResult is CommandPolicy.PolicyResult.DENIED) {
+        if (policyResult is PolicyResult.DENIED) {
             return ToolResult.error(policyResult.reason, exitCode = -1)
         }
 

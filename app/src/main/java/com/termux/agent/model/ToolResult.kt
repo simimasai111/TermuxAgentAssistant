@@ -10,12 +10,12 @@ data class ToolResult(
     val truncated: Boolean = false
 ) {
     companion object {
-        fun error(message: String, exitCode: Int = -1): ToolResult = ToolResult(
+        fun error(message: String, exitCode: Int = -1, durationMs: Long = 0): ToolResult = ToolResult(
             ok = false,
             exitCode = exitCode,
             stdout = "",
             stderr = message,
-            durationMs = 0,
+            durationMs = durationMs,
             metadata = mapOf("error" to message)
         )
 

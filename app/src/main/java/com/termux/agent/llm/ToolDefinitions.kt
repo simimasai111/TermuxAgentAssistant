@@ -17,10 +17,6 @@ data class ToolDefinition(
 
 object ToolDefinitions {
 
-    val ALL_TOOLS: List<ToolDefinition> = listOf(
-        executeCommand, readFile, writeFile, listDir, getEnv
-    )
-
     val executeCommand = ToolDefinition(
         name = "execute_command",
         description = "Execute a Linux command in the Termux sandbox. Use this to run programs, install packages, or perform system operations.",
@@ -115,5 +111,9 @@ object ToolDefinitions {
             ),
             "required" to emptyList<String>()
         )
+    )
+
+    val ALL_TOOLS: List<ToolDefinition> = listOf(
+        executeCommand, readFile, writeFile, listDir, getEnv
     )
 }
